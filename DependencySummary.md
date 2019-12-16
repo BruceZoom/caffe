@@ -1,0 +1,63 @@
+## Library
+- caffe_gpu_gemm
+  - cublas{S,D}gemm
+- caffe_gpu_gemv
+  - cublas{S,D}gemv
+- caffe_gpu_dot
+  - cublas{S,D}dot
+- caffe_gpu_axpy
+  - cublas{S,D}axpy
+- caffe_gpu_axpby
+  - caffe_gpu_scal
+    - cublasGetStream
+    - cublasSetStream
+    - cublas{S,D}scal
+  - caffe_gpu_axpy
+- caffe_gpu_scale
+  - cublas{S,D}copy
+  - cublas{S,D}scal
+
+## In Caffe
+- ScaleBiasForward
+- ScaleForward
+- bias_layer_->Backward
+- MaxPoolForward
+- AvePoolForward
+- StoPoolForwardTrain
+- StoPoolForwardTest
+- MaxPoolBackward
+- AvePoolBackward
+- StoPoolBackward
+- MaxForward (EltWiseLayer)
+- kernel_channel_max
+- kernel_channel_subtract
+- kernel_exp
+- kernel_channel_sum
+- kernel_channel_div
+- kernel_channel_dot
+- ReLUForward
+- ReLUBackward
+- Concat (ConcatLayer)
+- im2col.cu
+  - conv_im2col_gpu
+    - im2col_gpu
+      - im2col_gpu_kernel
+    - im2col_nd_gpu
+      - im2col_nd_gpu
+  - conv_col2im_gpu
+    - col2im_gpu
+      - col2im_gpu_kernel
+    - col2im_nd_gpu
+      - col2im_nd_gpu_kernel
+- math_functions.cu
+  - caffe_gpu_sqrt
+    - sqrt_kernel
+  - caffe_gpu_add_scalar
+    - add_scalar_kernel
+  - caffe_gpu_div
+    - div_kernel
+  - caffe_gpu_set
+    - cudaMemset
+    - set_kernel
+  - caffe_gpu_mul
+    - mul_kernel

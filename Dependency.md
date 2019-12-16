@@ -151,11 +151,125 @@
             const int kernel_h, const int kernel_w, const int stride_h,
             const int stride_w, Dtype* const bottom_diff)
 - **eltwise_layer.cu**
+  - EltwiseLayer::Forward_gpu
+    - ```c
+      caffe_gpu_mul(count, bottom[0]->gpu_data(), bottom[1]->gpu_data(), top_data);
+    - ```c
+      caffe_gpu_set(count, Dtype(0.), top_data);
+    - ```c
+      caffe_gpu_axpy(count, coeffs_[i], bottom[i]->gpu_data(), top_data);
+    - ```c
+      MaxForward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
+            count, top_data, bottom[i]->gpu_data(), i-1, top_data, mask);
+  - EltwiseLayer::Backward_gpu
+    - ```c
+      caffe_gpu_mul(count, bottom[j]->gpu_data(), bottom_diff,
+                        bottom_diff);
+    - ```c
+      caffe_gpu_div(count, top_data, bottom_data, bottom_diff);
+    - ```c
+      caffe_gpu_scale(count, coeffs_[i], top_diff, bottom_diff);
+    - ```c
+      MaxBackward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
+            count, top_diff, i, mask, bottom_diff);
 - **softmax_layer.cu**
+  - SoftmaxLayer::Forward_gpu
+    - ```c
+      kernel_channel_max<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
+        CAFFE_CUDA_NUM_THREADS>>>(outer_num_, channels, inner_num_, top_data,
+        scale_data);
+    - ```c
+      kernel_channel_subtract<Dtype><<<CAFFE_GET_BLOCKS(count),
+          CAFFE_CUDA_NUM_THREADS>>>(count, outer_num_, channels, inner_num_,
+          scale_data, top_data);
+    - ```c
+      kernel_exp<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
+          count, top_data, top_data);
+    - ```c
+      kernel_channel_sum<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
+          CAFFE_CUDA_NUM_THREADS>>>(outer_num_, channels, inner_num_, top_data,
+          scale_data);
+    - ```c
+      kernel_channel_div<Dtype><<<CAFFE_GET_BLOCKS(count),
+          CAFFE_CUDA_NUM_THREADS>>>(count, outer_num_, channels, inner_num_,
+          scale_data, top_data);
+  - SoftmaxLayer::Backward_gpu
+    - ```c
+      kernel_channel_dot<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
+            CAFFE_CUDA_NUM_THREADS>>>(outer_num_, channels, inner_num_,
+            top_diff, top_data, scale_data);
+    - ```c
+      kernel_channel_subtract<Dtype><<<CAFFE_GET_BLOCKS(count),
+            CAFFE_CUDA_NUM_THREADS>>>(count, outer_num_, channels, inner_num_,
+            scale_data, bottom_diff);
+    - ```c
+      caffe_gpu_mul<Dtype>(top[0]->count(), bottom_diff, top_data, bottom_diff);
 - **relu_layer.cu**
+  - ReLULayer::Forward_gpu
+    - ```c
+        ReLUForward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
+            count, bottom_data, top_data, negative_slope);
+  - ReLULayer::Backward_gpu
+    - ```c
+      ReLUBackward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
+            count, top_diff, bottom_data, bottom_diff, negative_slope);
 - **batch_norm_layer.cu**
+  - BatchNormLayer::Forward_gpu
+    - ```c
+      caffe_gpu_scale(variance_.count(), scale_factor,
+            this->blobs_[0]->gpu_data(), mean_.mutable_gpu_data());
+    - ```c
+      caffe_gpu_gemv<Dtype>(CblasNoTrans, channels_ * num, spatial_dim,
+            1. / (num * spatial_dim), bottom_data,
+            spatial_sum_multiplier_.gpu_data(), 0.,
+            num_by_chans_.mutable_gpu_data());
+    - ```c
+      caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, channels_, 1, 1,
+            batch_sum_multiplier_.gpu_data(), mean_.gpu_data(), 0.,
+            num_by_chans_.mutable_gpu_data());
+    - ```c
+      caffe_gpu_mul(top[0]->count(), top[0]->gpu_data(), top[0]->gpu_data(),
+            temp_.mutable_gpu_data());
+    - ```c
+      caffe_gpu_axpby(mean_.count(), Dtype(1), mean_.gpu_data(),
+            moving_average_fraction_, this->blobs_[0]->mutable_gpu_data());
+    - ```c
+      caffe_gpu_add_scalar(variance_.count(), eps_, variance_.mutable_gpu_data());
+    - ```c
+      caffe_gpu_sqrt(variance_.count(), variance_.gpu_data(),
+            variance_.mutable_gpu_data());
+    - ```c
+      caffe_gpu_div(temp_.count(), top_data, temp_.gpu_data(), top_data);
+  - BatchNormLayer::Backward_gpu
+    - ```c
+      caffe_gpu_mul(temp_.count(), top_data, top_diff, bottom_diff);
+    - ```c
+      caffe_gpu_gemv<Dtype>(CblasNoTrans, channels_ * num, spatial_dim, 1.,
+            bottom_diff, spatial_sum_multiplier_.gpu_data(), 0.,
+            num_by_chans_.mutable_gpu_data());
+    - ```c
+      caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, channels_, 1, 1,
+            batch_sum_multiplier_.gpu_data(), mean_.gpu_data(), 0.,
+            num_by_chans_.mutable_gpu_data());
+    - ```c
+      caffe_gpu_axpby(temp_.count(), Dtype(1), top_diff,
+            Dtype(-1. / (num * spatial_dim)), bottom_diff);
+    - ```c
+      caffe_gpu_div(temp_.count(), bottom_diff, temp_.gpu_data(), bottom_diff);
 
 ## Inception
 - **concat_layer.cu**
+  - ConcatLayer::Forward_gpu
+    - ```c
+      Concat<Dtype><<<CAFFE_GET_BLOCKS(nthreads), CAFFE_CUDA_NUM_THREADS>>>(
+            nthreads, bottom_data, kForward, num_concats_, concat_input_size_,
+            top_concat_axis, bottom_concat_axis, offset_concat_axis, top_data);
+  - ConcatLayer::Backward_gpu
+    - ```c
+      Concat<Dtype><<<CAFFE_GET_BLOCKS(nthreads), CAFFE_CUDA_NUM_THREADS>>>(
+            nthreads, top_diff, kForward, num_concats_, concat_input_size_,
+            top_concat_axis, bottom_concat_axis, offset_concat_axis, bottom_diff);
 - *constant?*
+  - a type of filler, implemented in cpp
 - *xavier?*
+  - a type of filler, implemented in cpp
